@@ -1,0 +1,57 @@
+```{r}
+load(here::here("data/fred_clean_merged_finance.Rdata")) 
+```
+
+```{r}
+dat <- as.data.frame(clean)
+class(dat)
+names(dat)
+
+```
+
+
+```{r}
+model <- lm(RPI_yoy ~ CPI_yoy, data = dat)
+summary(model)
+
+
+```
+```{r}
+set.seed(608)
+B <- 3000
+n <- nrow(dat)
+
+boot_beta <- numeric(B)
+
+```
+
+```{r}
+for (b in 1:B) {
+  idx <- sample(seq_len(n), size = n, replace = TRUE)
+  dat_boot <- dat[idx, c("RPI_yoy", "CPI_yoy")]
+  
+  model_boot <- lm(RPI_yoy ~ CPI_yoy, data = dat_boot)
+  boot_beta[b] <- coef(model_boot)["CPI_yoy"]
+}
+
+```
+
+```{r}
+ci_95 <- quantile(boot_beta, c(0.025, 0.975))
+ci_95
+
+```
+
+```{r}
+hist(
+  boot_beta,
+  breaks = 40,
+  main = "Bootstrap Distribution of CPI Coefficient",
+  xlab = "Bootstrap Estimates of CPI_yoy Coefficient"
+)
+
+abline(v = ci_95, col = "red", lwd = 2)
+abline(v = 0, col = "blue", lwd = 2)
+
+```
+

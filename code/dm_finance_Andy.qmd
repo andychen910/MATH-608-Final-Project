@@ -1,0 +1,210 @@
+---
+title: "Data Management for the Financial Data Set"
+author: "Andy Chen"
+format:
+  html: default
+  pdf: default
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Import
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(dplyr)
+
+# Read in the data 
+raw <-readxl::read_excel(here::here("Data/fred.xlsx"))
+raw
+
+gdp <- readr::read_csv(here::here("Data/bbkmgdp.csv"))
+gdp
+
+```
+
+```{r}
+#rename the S&P 500 to SP500
+
+mydata <- raw %>%
+  rename(SP500 = `S&P 500`) %>%
+  select(sasdate, FEDFUNDS,RPI,CPIAUCSL , WPSFD49207, UNRATE, PAYEMS, RETAILx, BUSLOANS, SP500) %>%
+  mutate(sasdate = as.Date(sasdate)) %>%
+  # swap month/day, the date format was wrong in excel file
+  mutate(
+    m = month(sasdate), d = day(sasdate),
+    sasdate = if_else(m <= 12 & d <= 12,
+                      make_date(year(sasdate), month = d, day = m),
+                      sasdate)
+  ) %>%
+  select(-m, -d)
+
+mydata
+```
+
+# Restrict to analysis variables
+
+Select only the variables that I am interested in
+
+```{r}
+
+```
+
+```{r}
+ # left join GDP data onto mydata
+gdp <- gdp %>%
+  mutate(observation_date = as.Date(observation_date))
+
+merged <- mydata %>%
+  left_join(gdp, by = c("sasdate" = "observation_date"))
+
+merged
+
+```
+
+# Clean
+
+## Categorical variable 1: FEDFUNDS
+
+replace this text with a description of what the variable is about
+
+```{r}
+# use the class() or str() function to identify the data type
+class(mydata$sasdate)
+str(mydata$sasdate)
+```
+
+Does this match with the intended data type?
+
+```{r}
+# create a table() of the data to check for out of range variables
+table(format(mydata$sasdate, "%Y"))
+```
+
+write a sentence here explaining if there are any out of range variables
+
+## Categorical variable 2: BBKMGDP
+
+replace this text with a description of what the variable is about
+
+```{r}
+# use the class() or str() function to identify the data type
+#create a new #categorical variable for unrate and yield curve inversion
+merged <- merged %>%
+  mutate(
+    unrate_cat = if_else(UNRATE < 6, "Low", "High"),
+    FEDFUNDS_cat = case_when(
+      FEDFUNDS < 2 ~ "Low",      
+      FEDFUNDS >= 2 & FEDFUNDS < 6.5 ~ "Average",
+      FEDFUNDS >= 6.5 ~ "High"       
+    ),
+    gdp_cat = case_when(
+      BBKMGDP < 0 ~ "Recession",          # negative growth
+      BBKMGDP >= 0 & BBKMGDP < 2 ~ "Slow Growth",
+      BBKMGDP >= 2 ~ "Strong Growth"
+    )
+  )
+
+
+
+merged
+
+# check structure
+class(merged$FEDFUNDS_cat)
+str(merged$FEDFUNDS_cat)
+
+class(merged$gdp_cat)
+str(merged$gdp_cat)
+
+class(merged$unrate_cat)
+str(merged$unrate_cat)
+
+```
+
+Does this match with the intended data type?
+
+```{r}
+# create a table() of the data to check for out of range variables
+table(merged$unrate_cat)
+
+
+table(merged$FEDFUNDS_cat)
+
+table(merged$gdp_cat)
+```
+
+write a sentence here explaining if there are any out of range variables
+
+## Quantitative variable 1: FEDFUNDS
+
+replace this text with a description of what the variable is about
+
+```{r}
+# use the class() or str() function to identify the data type
+class(merged$FEDFUNDS)
+str(merged$FEDFUNDS)
+
+```
+
+Does this match with the intended data type?
+
+```{r}
+# create a summary() of the data to check for out of range variables
+# create a hist() histogram of the data to check for severe skewness
+summary(merged$FEDFUNDS)
+hist(merged$FEDFUNDS, main="FEDFUNDS", xlab="Rate (%)")
+
+```
+
+write a sentence here explaining if there are any out of range variables
+
+## Quantitative variable 2: BBKMGDP
+
+replace this text with a description of what the variable is about
+
+```{r}
+# use the class() or str() function to identify the data type
+class(merged$BBKMGDP)
+str(merged$BBKMGDP)
+
+```
+
+Does this match with the intended data type?
+
+```{r}
+# create a summary() of the data to check for out of range variables
+# create a hist() histogram of the data to check for severe skewness
+summary(merged$BBKMGDP)
+hist(merged$BBKMGDP, main="BBKMGDP", xlab="Real GDP Growth (%)")
+
+```
+
+write a sentence here explaining if there are any out of range variables
+
+# Export cleaned data set
+
+Keep only selected variables and save to an external file
+
+```{r}
+merged <- merged %>%
+  arrange(sasdate) %>%
+  mutate(
+    RPI_yoy = 100 * (RPI / lag(RPI, 12) - 1),
+    CPI_yoy = 100 * (CPIAUCSL / lag(CPIAUCSL, 12) - 1),
+    CPI_yoy_cat = if_else(CPI_yoy > 2, "High Inflation", "Low Inflation")
+  )
+
+clean <- merged %>% 
+  select(sasdate, FEDFUNDS, RPI, CPIAUCSL, WPSFD49207, UNRATE, PAYEMS,
+         SP500, BBKMGDP, unrate_cat, FEDFUNDS_cat, gdp_cat, 
+         RPI_yoy, CPI_yoy, CPI_yoy_cat)
+
+save(clean, file = here::here("data/fred_clean_merged_finance.Rdata"))
+
+clean
+```

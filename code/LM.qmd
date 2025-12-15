@@ -1,0 +1,124 @@
+---
+title: "HW 08: Fitting Simple Regression models"
+author: "Andy Chen"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(broom)
+library(car)
+library(here)
+library(sjPlot)
+library(sjmisc) 
+library(sjlabelled)
+library(gtsummary)
+library(performance)
+library(see)
+library(gtsummary)
+load(here::here("data/fred_clean_merged_finance.Rdata")) 
+```
+
+```{r, include=FALSE}
+# load cleaned data 
+if (!exists("clean")) {
+  data_path <- here::here("data/fred_clean_merged_finance.Rdata")
+  if (file.exists(data_path)) {
+    load(data_path)  
+  } else {
+    stop("x")
+  }
+}
+
+plot.rpi.cpi <- clean %>%
+  select(CPI_yoy_cat, RPI_yoy) %>%
+  filter(!is.na(CPI_yoy_cat) & !is.na(RPI_yoy))
+
+```
+
+# **HW 08: Fitting Simple Regression models**
+
+1.  **Identify response and explanatory variables**
+
+    Response (Y): RPI_yoy (Real personal income growth, %)
+
+    Explanatory (X): CPI_yoy (Inflation rate, % YoY)
+
+    Rationale: Changes in inflation (CPI) may influence real personal income growth, higher inflation usually reduces purchasing power, possibly lowering real income growth.
+
+\newpage
+
+2.  **Visualize and summarise bivariate relationship**
+
+    ```{r}
+    #| fig-width: 15
+    #| fig-height: 3
+    ggplot(clean, aes(x = CPI_yoy, y = RPI_yoy)) +
+      geom_point(color = "steelblue", alpha = 0.6) +
+      geom_smooth(method = "lm", color = "darkred") +
+      labs(title = "Relationship between Inflation and Real Personal Income Growth",
+           x = "Inflation rate (CPI, % YoY)",
+           y = "Real Personal Income Growth (% YoY)") +
+      theme_classic()
+    ```
+
+    ```{r}
+    cor(clean$CPI_yoy, clean$RPI_yoy, use = "pairwise.complete.obs")
+
+    ```
+
+    There is a moderate negative linear relationship (r ≈ -0.23) between inflation and real personal income growth, means that higher inflation rates are generally associated with lower real income growth.
+
+\newpage
+
+3.  **Write the relationship you want to examine.**
+
+    Is there a linear relationship between inflation (CPI_yoy) and real personal income growth (RPI_yoy) in the U.S.?
+
+    $H_{0}: B_{1} = 0$ ( no linear relationship )\
+    $H_{A}: B_{1} ≠ 0$ (linear relationship exists)
+
+4.  **Fit the regression model.**
+
+    ```{r}
+    model <- lm(RPI_yoy ~ CPI_yoy, data = clean)
+    summary(model)
+    confint(model)
+    ```
+
+    The simple linear regression of real personal income growth on inflation shows a statistically significant negative relationship (B₁ = -0.201, SE = 0.031, t(777) = -6.588, p \< 0.001). This means that when inflation increases by 1%, the real personal income growth rate tends to decrease by about 0.20 percentage points, on average. The intercept of 3.95 indicates that when inflation is zero, the predicted real personal income growth is 3.95%. The model explains 5.3% of the variability in real personal income growth (R² = 0.0529).
+
+\newpage
+
+5.  **Verify assumptions & assess model fit.**
+
+    ```{r}
+    #| fig-width: 8
+    #| fig-height: 10
+    check_model(model)
+    ```
+
+    The hypothesis test for the slope coefficient $B_{1}$ yielded a t-value of -6.588 and a p-value of 8.22e-11. Because the p-value is much smaller than 0.05, we reject $H_{0}$and find sufficient evidence to support the alternative hypothesis that a linear relationship exists between inflation and real personal income growth. The negative slope suggests that higher inflation is associated with slower real income growth.
+
+6.  **Write a conclusion in context of the problem.**
+
+    ```{r}
+    model |>
+      tbl_regression(intercept = TRUE,
+                     estimate_fun = purrr::partial(style_ratio, digits = 3)) |>
+      add_glance_source_note(include = c(r.squared))
+    ```
+
+-   When inflation (CPI_yoy) = 0 %, the predicted real personal income growth rate is 3.95 % (95 % CI \[3.67, 4.23\]).
+
+-   Each 1 percentage-point increase in inflation is associated with an average 0.20 percentage-point decrease in real personal income growth (95 % CI \[−0.26, −0.14\], p \< 0.001).
+
+-   Inflation explains about 5.3 % of the variation in real personal income growth (R² = 0.053).
+
+    The model looks mostly linear with roughly normal residuals, but there’s a bit of uneven spread and possible correlation over time.
